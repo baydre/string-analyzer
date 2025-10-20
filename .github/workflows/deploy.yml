@@ -1,0 +1,22 @@
+name: Deploy PHP site via FTP
+
+on:
+  push:
+    branches:
+      - main  # Runs this action whenever you push to main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository files
+        uses: actions/checkout@v3
+
+      - name: Upload files to hosting via FTP
+        uses: SamKirkland/FTP-Deploy-Action@4.3.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /htdocs/   # or your InfinityFree directory

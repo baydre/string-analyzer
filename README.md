@@ -132,14 +132,14 @@ string-analyzer/
 ## Error Handling
 
 The API uses standard HTTP status codes:
-- 200: Success
-- 201: Created
-- 204: No Content (successful deletion)
-- 400: Bad Request
-- 404: Not Found
-- 409: Conflict (string already exists)
-- 422: Unprocessable Entity
-- 500: Internal Server Error
+- `200`: Success
+- `201`: Created
+- `204`: No Content (successful deletion)
+- `400`: Bad Request
+- `404`: Not Found
+- `409`: Conflict (string already exists)
+- `422`: Unprocessable Entity
+- `500`: Internal Server Error
 
 ## License
 

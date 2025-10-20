@@ -194,11 +194,9 @@ try {
                 if (count($parts) === 1) {
                     // Get All Strings with Filtering endpoint
                     $filters = applyFilters($_GET, $db);
-                    
                     $sql = 'SELECT * FROM strings ' . $filters['where'];
                     $stmt = $db->prepare($sql);
                     $stmt->execute($filters['params']);
-                    
                     $strings = [];
                     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         $strings[] = [
@@ -208,53 +206,29 @@ try {
                             'created_at' => $row['created_at']
                         ];
                     }
-                    
                     echo json_encode([
                         'data' => $strings,
                         'count' => count($strings),
                         'filters_applied' => $_GET
                     ]);
-                    
-                } elseif (count($parts) === 2) {
-                    // Get Specific String endpoint
-                    $stmt = $db->prepare('SELECT * FROM strings WHERE value = ?');
-                    $stmt->execute([$parts[1]]);
-                    
-                    $string = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if (!$string) {
-                        http_response_code(404);
-                        echo json_encode(['error' => 'String not found']);
-                        exit();
-                    }
-                    
-                    echo json_encode([
-                        'id' => $string['id'],
-                        'value' => $string['value'],
-                        'properties' => json_decode($string['properties'], true),
-                        'created_at' => $string['created_at']
-                    ]);
-                    
-                } elseif ($parts[1] === 'filter-by-natural-language') {
+
+                } elseif (count($parts) === 2 && $parts[1] === 'filter-by-natural-language') {
                     // Natural Language Filtering endpoint
                     if (!isset($_GET['query'])) {
                         http_response_code(400);
                         echo json_encode(['error' => 'Missing query parameter']);
                         exit();
                     }
-                    
                     $parsedFilters = parseNaturalLanguageQuery($_GET['query']);
                     if (empty($parsedFilters)) {
                         http_response_code(422);
                         echo json_encode(['error' => 'Could not parse meaningful filters from query']);
                         exit();
                     }
-                    
                     $filters = applyFilters($parsedFilters, $db);
-                    
                     $sql = 'SELECT * FROM strings ' . $filters['where'];
                     $stmt = $db->prepare($sql);
                     $stmt->execute($filters['params']);
-                    
                     $strings = [];
                     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         $strings[] = [
@@ -264,7 +238,6 @@ try {
                             'created_at' => $row['created_at']
                         ];
                     }
-                    
                     echo json_encode([
                         'data' => $strings,
                         'count' => count($strings),
@@ -272,6 +245,24 @@ try {
                             'original' => $_GET['query'],
                             'parsed_filters' => $parsedFilters
                         ]
+                    ]);
+
+                } elseif (count($parts) === 2) {
+                    // Get Specific String endpoint
+                    $value = urldecode($parts[1]);
+                    $stmt = $db->prepare('SELECT * FROM strings WHERE value = ?');
+                    $stmt->execute([$value]);
+                    $string = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$string) {
+                        http_response_code(404);
+                        echo json_encode(['error' => 'String not found']);
+                        exit();
+                    }
+                    echo json_encode([
+                        'id' => $string['id'],
+                        'value' => $string['value'],
+                        'properties' => json_decode($string['properties'], true),
+                        'created_at' => $string['created_at']
                     ]);
                 }
             }

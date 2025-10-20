@@ -1,0 +1,176 @@
+openapi: 3.0.0
+info:
+  title: String Analyzer API
+  description: A RESTful API service that analyzes strings and provides various properties
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /strings:
+    post:
+      summary: Create/Analyze String
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: string
+                  example: "Hello World"
+      responses:
+        '201':
+          description: String created and analyzed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: 
+                    type: string
+                  value:
+                    type: string
+                  properties:
+                    type: object
+                  created_at:
+                    type: string
+                    format: date-time
+        '409':
+          description: String already exists
+        '400':
+          description: Invalid request body
+    
+    get:
+      summary: Get All Strings with Filtering
+      parameters:
+        - name: is_palindrome
+          in: query
+          schema:
+            type: boolean
+        - name: min_length
+          in: query
+          schema:
+            type: integer
+        - name: max_length
+          in: query
+          schema:
+            type: integer
+        - name: word_count
+          in: query
+          schema:
+            type: integer
+        - name: contains_character
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of matching strings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/String'
+                  count:
+                    type: integer
+                  filters_applied:
+                    type: object
+
+  /strings/{string_value}:
+    get:
+      summary: Get Specific String
+      parameters:
+        - name: string_value
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: String details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/String'
+        '404':
+          description: String not found
+    
+    delete:
+      summary: Delete String
+      parameters:
+        - name: string_value
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: String deleted
+        '404':
+          description: String not found
+
+  /strings/filter-by-natural-language:
+    get:
+      summary: Natural Language Filtering
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "all single word palindromic strings"
+      responses:
+        '200':
+          description: Filtered strings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/String'
+                  count:
+                    type: integer
+                  interpreted_query:
+                    type: object
+        '400':
+          description: Missing query parameter
+        '422':
+          description: Could not parse query
+
+components:
+  schemas:
+    String:
+      type: object
+      properties:
+        id:
+          type: string
+        value:
+          type: string
+        properties:
+          type: object
+          properties:
+            length:
+              type: integer
+            is_palindrome:
+              type: boolean
+            unique_characters:
+              type: integer
+            word_count:
+              type: integer
+            sha256_hash:
+              type: string
+            character_frequency_map:
+              type: object
+        created_at:
+          type: string
+          format: date-time

@@ -3,7 +3,7 @@ name: Deploy PHP site via FTP
 on:
   push:
     branches:
-      - main  # Runs this action whenever you push to main branch
+      - deploy  # Runs this action whenever you push to deploy branch
 
 jobs:
   deploy:

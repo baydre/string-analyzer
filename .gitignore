@@ -1,1 +1,3 @@
 *.db
+PRODUCTION_FIXES.md
+*.log

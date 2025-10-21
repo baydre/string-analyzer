@@ -1,4 +1,7 @@
 <?php
+// Start output buffering to prevent premature connection closure
+ob_start();
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
@@ -7,12 +10,14 @@ header('Access-Control-Allow-Headers: Content-Type');
 // Handle OPTIONS request for CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    ob_end_flush();
     exit();
 }
 
-// Enable error reporting for debugging
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Enable error logging (production-safe)
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php_errors.log');
+ini_set('display_errors', 0); // Off for production
 error_reporting(E_ALL);
 
 // Database connection and initialization
@@ -39,15 +44,17 @@ try {
     
     // Set proper permissions for new database file
     if (!$dbExists && file_exists($dbPath)) {
-        chmod($dbPath, 0666);
+        @chmod($dbPath, 0666);
     }
 } catch (Exception $e) {
+    error_log('Database init error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'error' => 'Database initialization failed',
         'details' => $e->getMessage(),
         'path' => $dbPath ?? __DIR__ . '/strings.db'
     ]);
+    ob_end_flush();
     exit();
 }
 
@@ -156,7 +163,15 @@ try {
         case 'POST':
             if ($parts[0] === 'strings' && count($parts) === 1) {
                 // Create/Analyze String endpoint
-                $data = json_decode(file_get_contents('php://input'), true);
+                $rawInput = file_get_contents('php://input');
+                $data = json_decode($rawInput, true);
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Invalid JSON']);
+                    break;
+                }
+                
                 $value = validateString($data['value'] ?? null);
                 
                 // Check if string already exists
@@ -186,10 +201,35 @@ try {
                     'properties' => $properties,
                     'created_at' => gmdate('Y-m-d\TH:i:s\Z')
                 ]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Endpoint not found']);
             }
             break;
 
         case 'GET':
+            // Base URL welcome/intro
+            if (empty($parts[0])) {
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
+                $base = $scheme . '://' . $host;
+
+                echo json_encode([
+                    'name' => 'String Analyzer API',
+                    'version' => '1.0.0',
+                    'status' => 'active',
+                    'endpoints' => [
+                        'create' => $base . '/strings',
+                        'list' => $base . '/strings',
+                        'get_specific' => $base . '/strings/{string_value}',
+                        'natural_language_filter' => $base . '/strings/filter-by-natural-language?query=...',
+                        'delete' => $base . '/strings/{string_value}'
+                    ],
+                    'docs' => $base . '/docs.html'
+                ]);
+                break;
+            }
+
             if ($parts[0] === 'strings') {
                 if (count($parts) === 1) {
                     // Get All Strings with Filtering endpoint
@@ -265,6 +305,9 @@ try {
                         'created_at' => $string['created_at']
                     ]);
                 }
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Endpoint not found']);
             }
             break;
 
@@ -282,6 +325,9 @@ try {
                 }
                 
                 http_response_code(204);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Endpoint not found']);
             }
             break;
 
@@ -289,8 +335,23 @@ try {
             http_response_code(405);
             echo json_encode(['error' => 'Method not allowed']);
     }
+    
+    // Flush output buffer
+    if (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+    
 } catch (Exception $e) {
-    http_response_code(500);
+    error_log('Request error: ' . $e->getMessage() . ' | Code: ' . $e->getCode());
+    $statusCode = $e->getCode();
+    if ($statusCode < 400 || $statusCode >= 600) {
+        $statusCode = 500;
+    }
+    http_response_code($statusCode);
     echo json_encode(['error' => $e->getMessage()]);
+    
+    if (ob_get_level() > 0) {
+        ob_end_flush();
+    }
 }
 ?>

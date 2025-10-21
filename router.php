@@ -10,8 +10,9 @@ if ($uri === '/swagger.yaml' || $uri === '/docs.html') {
     return false; // Serve as static file
 }
 
-// If the request points to an existing file or directory, let the server handle it
-if ($uri !== '/' && file_exists($file)) {
+// If the request points to an existing file or directory, and it's not a PHP file,
+// let the server handle it directly (for static resources)
+if ($uri !== '/' && file_exists($file) && !preg_match('/\.php$/', $file)) {
     return false;
 }
 

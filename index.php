@@ -111,27 +111,38 @@ function json_store_save($path, $data) {
 }
 
 function filter_items_php($items, $query) {
+    error_log('Filtering with query: ' . json_encode($query));
     return array_values(array_filter($items, function ($item) use ($query) {
         $props = $item['properties'] ?? [];
         // is_palindrome
         if (isset($query['is_palindrome'])) {
             $bool = filter_var($query['is_palindrome'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($bool !== null && (bool)($props['is_palindrome'] ?? null) !== $bool) return false;
+            if ($bool !== null && (bool)($props['is_palindrome'] ?? null) !== $bool) {
+                return false;
+            }
         }
         // length
         if (isset($query['min_length']) && is_numeric($query['min_length'])) {
-            if (($props['length'] ?? PHP_INT_MIN) < (int)$query['min_length']) return false;
+            if (($props['length'] ?? PHP_INT_MIN) < (int)$query['min_length']) {
+                return false;
+            }
         }
         if (isset($query['max_length']) && is_numeric($query['max_length'])) {
-            if (($props['length'] ?? PHP_INT_MAX) > (int)$query['max_length']) return false;
+            if (($props['length'] ?? PHP_INT_MAX) > (int)$query['max_length']) {
+                return false;
+            }
         }
         // word_count
         if (isset($query['word_count']) && is_numeric($query['word_count'])) {
-            if ((int)($props['word_count'] ?? -1) !== (int)$query['word_count']) return false;
+            if ((int)($props['word_count'] ?? -1) !== (int)$query['word_count']) {
+                return false;
+            }
         }
         // contains_character
         if (isset($query['contains_character']) && $query['contains_character'] !== '') {
-            if (strpos($item['value'], $query['contains_character']) === false) return false;
+            if (stripos($item['value'], $query['contains_character']) === false) {
+                return false;
+            }
         }
         return true;
     }));
@@ -206,9 +217,12 @@ error_log("String Analyzer: backend=$activeBackend path=" . ($activePath ?: 'n/a
 
 // Helper functions
 function analyzeString($string) {
+    // Make palindrome check case-insensitive by converting to lowercase for comparison
+    $isPalindrome = strcasecmp($string, strrev($string)) === 0;
+    
     return [
         'length' => strlen($string),
-        'is_palindrome' => strcasecmp($string, strrev($string)) === 0,
+        'is_palindrome' => $isPalindrome,
         'unique_characters' => count(array_unique(str_split($string))),
         'word_count' => str_word_count($string),
         'sha256_hash' => hash('sha256', $string),
@@ -254,10 +268,21 @@ function parseNaturalLanguageQuery($query) {
     if (preg_match('/shorter than (\d+)/', $query, $matches)) {
         $filters['max_length'] = (int)$matches[1] - 1;
     }
+    if (preg_match('/length (?:of|is) (\d+)/', $query, $matches)) {
+        $filters['min_length'] = (int)$matches[1];
+        $filters['max_length'] = (int)$matches[1];
+    }
     
     // Check for specific character containment
-    if (preg_match('/containing? (?:the )?(?:letter )?([a-z])/', $query, $matches)) {
+    if (preg_match('/containing? (?:the )?(?:letter|character)?\s?([a-z])/', $query, $matches)) {
         $filters['contains_character'] = $matches[1];
+    }
+    
+    // Check for vowels (a, e, i, o, u)
+    if (strpos($query, 'vowel') !== false) {
+        if (strpos($query, 'first vowel') !== false || strpos($query, 'first vowel') !== false) {
+            $filters['contains_character'] = 'a';
+        }
     }
     
     return $filters;
@@ -266,6 +291,8 @@ function parseNaturalLanguageQuery($query) {
 function applyFilters($query, $db) {
     $conditions = [];
     $params = [];
+    
+    error_log('Applying SQLite filters: ' . json_encode($query));
     
     if (isset($query['is_palindrome'])) {
         $value = filter_var($query['is_palindrome'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
@@ -304,6 +331,9 @@ $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $parts = explode('/', trim($path, '/'));
 
+// Error handling for better debugging
+error_log("Request: $method $path");
+
 try {
     switch ($method) {
         case 'POST':
@@ -318,7 +348,14 @@ try {
                     break;
                 }
                 
-                $value = validateString($data['value'] ?? null);
+                try {
+                    $value = validateString($data['value'] ?? null);
+                } catch (Exception $e) {
+                    $statusCode = $e->getCode();
+                    http_response_code($statusCode);
+                    echo json_encode(['error' => $e->getMessage()]);
+                    exit();
+                }
                 
                 // Analyze
                 $properties = analyzeString($value);
@@ -481,14 +518,19 @@ try {
                     $value = urldecode($parts[1]);
                     if (isset($store) && $store['type'] === 'json') {
                         $all = json_store_load($store['path']);
+                        $found = false;
                         foreach ($all as $row) {
                             if ($row['value'] === $value) {
+                                $found = true;
+                                http_response_code(200);
                                 echo json_encode($row);
-                                exit();
+                                break;
                             }
                         }
-                        http_response_code(404);
-                        echo json_encode(['error' => 'String not found']);
+                        if (!$found) {
+                            http_response_code(404);
+                            echo json_encode(['error' => 'String not found']);
+                        }
                         exit();
                     } else {
                         $stmt = $db->prepare('SELECT * FROM strings WHERE value = ?');
@@ -499,6 +541,7 @@ try {
                             echo json_encode(['error' => 'String not found']);
                             exit();
                         }
+                        http_response_code(200);
                         echo json_encode([
                             'id' => $string['id'],
                             'value' => $string['value'],

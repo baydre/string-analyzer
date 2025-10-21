@@ -4,8 +4,14 @@ info:
   description: A RESTful API service that analyzes strings and provides various properties
   version: 1.0.0
 servers:
-  - url: http://localhost:8000
-    description: Local development server
+  - url: https://baydre-string-analyzer.pxxl.app
+    description: Production (PXXL)
+    variables:
+      service:
+        default: baydre-string-analyzer
+        description: Replace with your deployed PXXL service name
+  # - url: http://localhost:8000
+  #   description: Local development server
 
 paths:
   /strings:

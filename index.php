@@ -22,12 +22,18 @@ error_reporting(E_ALL);
 
 // Database connection and initialization
 try {
-    $dbPath = __DIR__ . '/strings.db';
+    // Allow overriding DB location via environment variable, e.g., DB_PATH=/tmp/strings.db
+    $dbPath = getenv('DB_PATH') ?: (__DIR__ . '/strings.db');
     $dbExists = file_exists($dbPath);
+    $dbDir = dirname($dbPath);
     
-    // Ensure directory is writable
-    if (!is_writable(__DIR__)) {
-        throw new Exception('Directory is not writable. Please check permissions.');
+    // Ensure target directory exists and is writable
+    if (!is_dir($dbDir)) {
+        // Attempt to create the directory if it doesn't exist
+        @mkdir($dbDir, 0777, true);
+    }
+    if (!is_writable($dbDir)) {
+        throw new Exception('Database directory is not writable: ' . $dbDir . '. Consider setting DB_PATH to a writable location, e.g., /tmp/strings.db');
     }
     
     // Create PDO connection
@@ -52,7 +58,7 @@ try {
     echo json_encode([
         'error' => 'Database initialization failed',
         'details' => $e->getMessage(),
-        'path' => $dbPath ?? __DIR__ . '/strings.db'
+        'path' => $dbPath ?? (__DIR__ . '/strings.db')
     ]);
     ob_end_flush();
     exit();
